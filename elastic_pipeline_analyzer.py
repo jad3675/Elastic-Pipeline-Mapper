@@ -1675,17 +1675,25 @@ class ElasticInfrastructureGUI:
                         physics: {{
                             enabled: true,
                             stabilization: {{
-                                iterations: 150,
-                                updateInterval: 25
+                                enabled: true,
+                                iterations: 300,
+                                updateInterval: 25,
+                                onlyDynamicEdges: false,
+                                fit: true
                             }},
                             barnesHut: {{
-                                gravitationalConstant: -4000,
+                                gravitationalConstant: -1000,
                                 centralGravity: 0.1,
-                                springLength: 200,
-                                springConstant: 0.02,
-                                damping: 0.15,
-                                avoidOverlap: 0.5
-                            }}
+                                springLength: 120,
+                                springConstant: 0.08,
+                                damping: 0.3,
+                                avoidOverlap: 0.1
+                            }},
+                            maxVelocity: 10,
+                            minVelocity: 0.01,
+                            solver: 'barnesHut',
+                            timestep: 0.3,
+                            adaptiveTimestep: true
                         }},
                         interaction: {{
                             hover: true,
@@ -1703,6 +1711,12 @@ class ElasticInfrastructureGUI:
                     }};
                     
                     network = new vis.Network(container, graphData, options);
+                    
+                    // Add stabilization event listener to disable physics after stabilization
+                    network.on('stabilizationIterationsDone', function() {{
+                        console.log('Network stabilized - disabling physics');
+                        network.setOptions({{ physics: false }});
+                    }});
                     
                     // Add event listeners
                     network.on('hoverNode', onHoverNode);
