@@ -1,0 +1,32 @@
+# Elasticsearch Pipeline Analyzer Requirements
+# Python 3.7+ required
+
+# Core dependencies
+elasticsearch>=7.0.0,<9.0.0
+# Official Elasticsearch Python client for connecting to ES clusters
+
+# GUI Framework (usually included with Python)
+# tkinter - Built into Python standard library
+
+# Optional dependencies for enhanced functionality
+requests>=2.25.0
+# For HTTP requests and better error handling
+
+urllib3>=1.26.0
+# For secure HTTPS connections
+
+certifi>=2021.5.25
+# For SSL certificate verification
+
+# Development dependencies (optional)
+# pytest>=6.0.0
+# For running tests
+
+# flake8>=3.8.0
+# For code linting
+
+# black>=21.0.0
+# For code formatting
+
+# Note: vis-network is a JavaScript library loaded via CDN in the HTML output
+# No Python package installation required for visualization
