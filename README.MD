@@ -171,19 +171,6 @@ Choose what to analyze:
 - **Orange (#fff3e0)**: Processing phases
 - **Pink (#fce4ec)**: Processor groups
 
-## 🔧 Configuration
-
-### Environment Variables
-The application supports the following environment variables for default configuration:
-
-```bash
-# Default Elasticsearch connection
-export ES_CLOUD_ID="your-cloud-id"
-export ES_API_KEY="your-api-key"
-export ES_URL="https://your-elasticsearch-url:9200"
-export ES_USERNAME="your-username"
-export ES_PASSWORD="your-password"
-```
 
 ### Application Settings
 - **SSL Verification**: Can be disabled for development environments
@@ -304,7 +291,7 @@ elastic_pipeline_analyzer_v6.6.py
 
 ### Testing
 Test your changes with:
-- Different Elasticsearch versions (7.x, 8.x)
+- Different Elasticsearch versions (8.x, 9.x)
 - Various authentication methods
 - Different pipeline complexities
 - Multiple visualization levels
@@ -342,15 +329,7 @@ When reporting bugs, please include:
 - **Configuration Validation**: Real-time pipeline syntax validation
 - **Template Support**: Support for index and component templates
 - **Bulk Operations**: Batch analysis of multiple clusters
-- **Custom Themes**: User-configurable color schemes and layouts
 - **Export Formats**: Additional export formats (PDF, Visio, etc.)
-
-### Version History
-- **v6.6**: Current version with multi-level visualization and interactive features
-- **v6.5**: Added processor detail level and enhanced categorization
-- **v6.0**: Major rewrite with interactive visualizations
-- **v5.x**: Basic pipeline analysis and Mermaid diagram generation
 
 ---
 
-**Made with ❤️ for the Elasticsearch community**
