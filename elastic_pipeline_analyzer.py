@@ -460,14 +460,39 @@ class ElasticInfrastructureGUI:
     def fetch_infrastructure_data(self):
         """Fetch all required data from Elasticsearch."""
         try:
-            # Fetch indices with their settings
+            # Fetch indices with their settings and mappings
             indices_response = self.es_client.indices.get_settings(flat_settings=True)
+            
+            # Also fetch mappings for more complete index information
+            try:
+                mappings_response = self.es_client.indices.get_mapping()
+            except Exception as e:
+                print(f"Warning: Could not fetch mappings: {str(e)}")
+                mappings_response = {}
+            
+            # Fetch index stats for additional information
+            try:
+                stats_response = self.es_client.indices.stats()
+            except Exception as e:
+                print(f"Warning: Could not fetch index stats: {str(e)}")
+                stats_response = {}
+            
             for index_name, settings in indices_response.items():
                 index_settings = settings.get('settings', {})
+                
+                # Get mapping information
+                mapping_info = mappings_response.get(index_name, {}).get('mappings', {})
+                
+                # Get stats information
+                index_stats = stats_response.get('indices', {}).get(index_name, {})
+                
                 self.infrastructure_data['indices'][index_name] = {
                     'default_pipeline': index_settings.get('index.default_pipeline'),
                     'final_pipeline': index_settings.get('index.final_pipeline'),
-                    'pipeline_chains': []  # Will store complete pipeline chains
+                    'pipeline_chains': [],  # Will store complete pipeline chains
+                    'full_settings': index_settings,  # Store all settings for detailed view
+                    'mappings': mapping_info,  # Store mappings
+                    'stats': index_stats  # Store stats
                 }
 
             # Fetch all pipelines and analyze their processors
@@ -970,7 +995,10 @@ class ElasticInfrastructureGUI:
                     'settings': {
                         'default_pipeline': index_info.get('default_pipeline'),
                         'final_pipeline': index_info.get('final_pipeline')
-                    }
+                    },
+                    'full_settings': index_info.get('full_settings', {}),
+                    'mappings': index_info.get('mappings', {}),
+                    'stats': index_info.get('stats', {})
                 }
                 
                 add_node_data(node_id, item, 'index', metadata, detailed_info)
@@ -2095,6 +2123,109 @@ class ElasticInfrastructureGUI:
                                 </div>
                             </div>
                         `;
+                    }} else if (node.type === 'index') {{
+                        // Show comprehensive index settings
+                        content += `
+                            <div class="detail-section">
+                                <h3>⚙️ Index Settings</h3>
+                        `;
+                        
+                        if (detailedInfo.full_settings && Object.keys(detailedInfo.full_settings).length > 0) {{
+                            // Group settings by category
+                            const settingsCategories = {{}};
+                            Object.entries(detailedInfo.full_settings).forEach(([key, value]) => {{
+                                const category = key.split('.')[0] || 'general';
+                                if (!settingsCategories[category]) {{
+                                    settingsCategories[category] = {{}};
+                                }}
+                                settingsCategories[category][key] = value;
+                            }});
+                            
+                            Object.entries(settingsCategories).forEach(([category, settings]) => {{
+                                content += `
+                                    <div class="settings-category">
+                                        <h4>${{category.charAt(0).toUpperCase() + category.slice(1)}} Settings</h4>
+                                        <div class="settings-list">
+                                `;
+                                
+                                Object.entries(settings).forEach(([key, value]) => {{
+                                    content += `
+                                        <div class="setting-item">
+                                            <span class="setting-key">${{key}}:</span>
+                                            <span class="setting-value">${{JSON.stringify(value)}}</span>
+                                        </div>
+                                    `;
+                                }});
+                                
+                                content += `
+                                        </div>
+                                    </div>
+                                `;
+                            }});
+                        }} else {{
+                            content += `<p>No detailed settings available</p>`;
+                        }}
+                        
+                        content += `</div>`;
+                        
+                        // Show mappings if available
+                        if (detailedInfo.mappings && Object.keys(detailedInfo.mappings).length > 0) {{
+                            content += `
+                                <div class="detail-section">
+                                    <h3>🗺️ Index Mappings</h3>
+                                    <div class="mappings-container">
+                                        <pre class="mappings-json">${{JSON.stringify(detailedInfo.mappings, null, 2)}}</pre>
+                                    </div>
+                                </div>
+                            `;
+                        }}
+                        
+                        // Show index statistics if available
+                        if (detailedInfo.stats && Object.keys(detailedInfo.stats).length > 0) {{
+                            content += `
+                                <div class="detail-section">
+                                    <h3>📊 Index Statistics</h3>
+                            `;
+                            
+                            // Extract key statistics
+                            const stats = detailedInfo.stats;
+                            if (stats.total) {{
+                                content += `
+                                    <div class="stats-grid">
+                                        <div class="stat-card">
+                                            <h5>Documents</h5>
+                                            <span class="stat-value">${{stats.total.docs?.count || 0}}</span>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h5>Deleted Docs</h5>
+                                            <span class="stat-value">${{stats.total.docs?.deleted || 0}}</span>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h5>Store Size</h5>
+                                            <span class="stat-value">${{stats.total.store?.size_in_bytes ? (stats.total.store.size_in_bytes / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}}</span>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h5>Segments</h5>
+                                            <span class="stat-value">${{stats.total.segments?.count || 0}}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }}
+                            
+                            // Show full stats in collapsible section
+                            content += `
+                                <div class="collapsible-section">
+                                    <button class="collapsible-toggle" onclick="toggleCollapsible(this)">
+                                        📋 View Full Statistics
+                                    </button>
+                                    <div class="collapsible-content" style="display: none;">
+                                        <pre class="stats-json">${{JSON.stringify(stats, null, 2)}}</pre>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            content += `</div>`;
+                        }}
                     }}
                     
                     content += `
@@ -2346,6 +2477,20 @@ class ElasticInfrastructureGUI:
                         element.innerHTML = `, ${{fullText}} <span class="collapse-indicator">(click to collapse)</span>`;
                         element.classList.add('expanded');
                         element.title = 'Click to collapse';
+                    }}
+                }}
+                
+                // Toggle collapsible sections
+                function toggleCollapsible(button) {{
+                    const content = button.nextElementSibling;
+                    const isVisible = content.style.display !== 'none';
+                    
+                    if (isVisible) {{
+                        content.style.display = 'none';
+                        button.innerHTML = button.innerHTML.replace('📋', '📁');
+                    }} else {{
+                        content.style.display = 'block';
+                        button.innerHTML = button.innerHTML.replace('📁', '📋');
                     }}
                 }}
                 
