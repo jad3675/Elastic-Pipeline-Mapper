@@ -926,14 +926,22 @@ class ElasticInfrastructureGUI:
                     'called_by': list(pipeline_info.get('called_by', set()))
                 }
                 
-                add_node_data(node_id, item, 'pipeline', metadata, detailed_info)
-                
-                # Add phase or processor group nodes based on visualization level
-                if visualization_level == 'pipeline_detail':
+                # Handle different visualization levels
+                if visualization_level == 'overview':
+                    # Overview level: Just show basic pipeline node
+                    add_node_data(node_id, item, 'pipeline', metadata, detailed_info)
+                    last_node_id = node_id
+                elif visualization_level == 'pipeline_detail':
+                    # Pipeline detail level: Show pipeline with phases
+                    add_node_data(node_id, item, 'pipeline', metadata, detailed_info)
                     last_node_id = add_pipeline_phases_interactive(item, node_id)
                 elif visualization_level == 'processor_detail':
+                    # Processor detail level: Show pipeline with detailed processor groups
+                    add_node_data(node_id, item, 'pipeline', metadata, detailed_info)
                     last_node_id = add_processor_groups_interactive(item, node_id)
                 else:
+                    # Fallback to basic pipeline
+                    add_node_data(node_id, item, 'pipeline', metadata, detailed_info)
                     last_node_id = node_id
                 
                 # Add relationships from the last node (could be pipeline, phase, or processor group)
