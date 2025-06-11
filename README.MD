@@ -84,7 +84,7 @@ pip install tkinter elasticsearch vis-network
 
 3. **Run the Application**
    ```bash
-   python elastic_pipeline_analyzer_v6.6.py
+   python elastic_pipeline_analyzer.py
    ```
 
 ## 📖 Usage Guide
@@ -239,7 +239,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 ### Application Structure
 ```
-elastic_pipeline_analyzer_v6.6.py
+elastic_pipeline_analyzer.py
 ├── ElasticInfrastructureGUI (Main GUI class)
 ├── Connection Management
 │   ├── Cloud ID / URL configuration
