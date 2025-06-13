@@ -22,7 +22,23 @@ class ElasticInfrastructureGUI:
             'indices': {},
             'pipelines': {},
             'enrich_policies': {},
+            'index_templates': {},      # NEW: Index templates
+            'component_templates': {},  # NEW: Component templates
             'relationships': defaultdict(list)
+        }
+        
+        # Template categorization for visualization
+        self.template_types = {
+            'index_template': {
+                'name': '📋 Index Template',
+                'color': '#e8eaf6',
+                'shape': 'hexagon'
+            },
+            'component_template': {
+                'name': '🧩 Component Template', 
+                'color': '#f1f8e9',
+                'shape': 'triangle'
+            }
         }
         
         # Store processor details for hover
@@ -238,10 +254,27 @@ class ElasticInfrastructureGUI:
             command=self.update_selection_list
         ).grid(row=0, column=3)
         
-        # Visualization Level Selection - NEW SECTION
-        ttk.Separator(analysis_frame, orient='horizontal').grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
+        # NEW: Template options
+        ttk.Radiobutton(
+            analysis_frame, 
+            text="Index Template", 
+            variable=self.analysis_type, 
+            value="index_template",
+            command=self.update_selection_list
+        ).grid(row=1, column=1)
         
-        ttk.Label(analysis_frame, text="Visualization Level:").grid(row=2, column=0, sticky=tk.W)
+        ttk.Radiobutton(
+            analysis_frame, 
+            text="Component Template", 
+            variable=self.analysis_type, 
+            value="component_template",
+            command=self.update_selection_list
+        ).grid(row=1, column=2)
+        
+        # Visualization Level Selection - NEW SECTION
+        ttk.Separator(analysis_frame, orient='horizontal').grid(row=2, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
+        
+        ttk.Label(analysis_frame, text="Visualization Level:").grid(row=3, column=0, sticky=tk.W)
         self.visualization_level = tk.StringVar(value="overview")
         
         level_frame = ttk.Frame(analysis_frame)
@@ -529,11 +562,55 @@ class ElasticInfrastructureGUI:
                     'used_by_pipelines': set()  # Track which pipelines use this policy
                 }
 
+            # Fetch index templates
+            try:
+                index_templates_response = self.es_client.indices.get_index_template()
+                for template in index_templates_response.get('index_templates', []):
+                    name = template['name']
+                    template_config = template['index_template']
+                    
+                    self.infrastructure_data['index_templates'][name] = {
+                        'index_patterns': template_config.get('index_patterns', []),
+                        'priority': template_config.get('priority', 0),
+                        'composed_of': template_config.get('composed_of', []),
+                        'template': template_config.get('template', {}),
+                        'data_stream': template_config.get('data_stream', {}),
+                        'used_by_indices': set()  # Track which indices use this template
+                    }
+            except Exception as e:
+                print(f"Warning: Could not fetch index templates: {str(e)}")
+
+            # Fetch component templates
+            try:
+                component_templates_response = self.es_client.cluster.get_component_template()
+                for template in component_templates_response.get('component_templates', []):
+                    name = template['name']
+                    template_config = template['component_template']
+                    
+                    self.infrastructure_data['component_templates'][name] = {
+                        'template': template_config.get('template', {}),
+                        'version': template_config.get('version'),
+                        'used_by_index_templates': set()  # Track which index templates use this
+                    }
+            except Exception as e:
+                print(f"Warning: Could not fetch component templates: {str(e)}")
+
+            # Build component template relationships
+            self.build_template_relationships()
             self.build_relationships()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to fetch data: {str(e)}")
             raise
+
+    def build_template_relationships(self):
+        """Build relationships between index templates and component templates."""
+        # Build reverse relationships: which index templates use which component templates
+        for index_template_name, index_template_info in self.infrastructure_data['index_templates'].items():
+            composed_of = index_template_info.get('composed_of', [])
+            for component_template_name in composed_of:
+                if component_template_name in self.infrastructure_data['component_templates']:
+                    self.infrastructure_data['component_templates'][component_template_name]['used_by_index_templates'].add(index_template_name)
 
     def build_relationships(self):
         """Build comprehensive relationship graph between components."""
@@ -626,6 +703,10 @@ class ElasticInfrastructureGUI:
             items = sorted(self.infrastructure_data['pipelines'].keys())
         elif analysis_type == "enrich":
             items = sorted(self.infrastructure_data['enrich_policies'].keys())
+        elif analysis_type == "index_template":
+            items = sorted(self.infrastructure_data['index_templates'].keys())
+        elif analysis_type == "component_template":
+            items = sorted(self.infrastructure_data['component_templates'].keys())
         
         for item in items:
             self.selection_list.insert(tk.END, item)
@@ -691,6 +772,18 @@ class ElasticInfrastructureGUI:
                     'color': {'background': '#fce4ec', 'border': '#c2185b'},
                     'shape': 'dot',
                     'font': {'color': '#c2185b'}
+                })
+            elif node_type == 'index_template':
+                node_data.update({
+                    'color': {'background': '#e8eaf6', 'border': '#3f51b5'},
+                    'shape': 'hexagon',
+                    'font': {'color': '#3f51b5'}
+                })
+            elif node_type == 'component_template':
+                node_data.update({
+                    'color': {'background': '#f1f8e9', 'border': '#689f38'},
+                    'shape': 'triangle',
+                    'font': {'color': '#689f38'}
                 })
             
             nodes.append(node_data)
@@ -1036,6 +1129,74 @@ class ElasticInfrastructureGUI:
                     index_id = f"{re.sub(r'[^a-zA-Z0-9]', '_', source_index)}_index"
                     add_edge_data(node_id, index_id, 'source')
                     process_relationships(source_index, 'index')
+            
+            elif component_type == 'index_template':
+                template_info = self.infrastructure_data['index_templates'].get(item, {})
+                pattern_count = len(template_info.get('index_patterns', []))
+                component_count = len(template_info.get('composed_of', []))
+                
+                metadata = {
+                    'pattern_count': pattern_count,
+                    'component_count': component_count,
+                    'priority': template_info.get('priority', 0)
+                }
+                
+                detailed_info = {
+                    'index_patterns': template_info.get('index_patterns', []),
+                    'composed_of': template_info.get('composed_of', []),
+                    'priority': template_info.get('priority', 0),
+                    'template': template_info.get('template', {}),
+                    'data_stream': template_info.get('data_stream', {})
+                }
+                
+                add_node_data(node_id, item, 'index_template', metadata, detailed_info)
+                
+                # Connect to component templates
+                for component_template in template_info.get('composed_of', []):
+                    component_id = f"{re.sub(r'[^a-zA-Z0-9]', '_', component_template)}_component_template"
+                    add_edge_data(node_id, component_id, 'uses')
+                    process_relationships(component_template, 'component_template')
+                
+                # Check for pipeline settings in template
+                template_settings = template_info.get('template', {}).get('settings', {})
+                if template_settings.get('index.default_pipeline'):
+                    pipeline_id = f"{re.sub(r'[^a-zA-Z0-9]', '_', template_settings['index.default_pipeline'])}_pipeline"
+                    add_edge_data(node_id, pipeline_id, 'default pipeline')
+                    process_relationships(template_settings['index.default_pipeline'], 'pipeline')
+                
+                if template_settings.get('index.final_pipeline'):
+                    pipeline_id = f"{re.sub(r'[^a-zA-Z0-9]', '_', template_settings['index.final_pipeline'])}_pipeline"
+                    add_edge_data(node_id, pipeline_id, 'final pipeline')
+                    process_relationships(template_settings['index.final_pipeline'], 'pipeline')
+            
+            elif component_type == 'component_template':
+                template_info = self.infrastructure_data['component_templates'].get(item, {})
+                used_by_count = len(template_info.get('used_by_index_templates', set()))
+                
+                metadata = {
+                    'used_by_count': used_by_count,
+                    'version': template_info.get('version')
+                }
+                
+                detailed_info = {
+                    'template': template_info.get('template', {}),
+                    'version': template_info.get('version'),
+                    'used_by_index_templates': list(template_info.get('used_by_index_templates', set()))
+                }
+                
+                add_node_data(node_id, item, 'component_template', metadata, detailed_info)
+                
+                # Check for pipeline settings in component template
+                template_settings = template_info.get('template', {}).get('settings', {})
+                if template_settings.get('index.default_pipeline'):
+                    pipeline_id = f"{re.sub(r'[^a-zA-Z0-9]', '_', template_settings['index.default_pipeline'])}_pipeline"
+                    add_edge_data(node_id, pipeline_id, 'default pipeline')
+                    process_relationships(template_settings['index.default_pipeline'], 'pipeline')
+                
+                if template_settings.get('index.final_pipeline'):
+                    pipeline_id = f"{re.sub(r'[^a-zA-Z0-9]', '_', template_settings['index.final_pipeline'])}_pipeline"
+                    add_edge_data(node_id, pipeline_id, 'final pipeline')
+                    process_relationships(template_settings['index.final_pipeline'], 'pipeline')
         
         # Process all selected items
         for item in selected_items:
@@ -1142,6 +1303,49 @@ class ElasticInfrastructureGUI:
                 
                 if policy_info.get('used_by_pipelines'):
                     summary_lines.append(f"  - {', '.join(policy_info['used_by_pipelines'])}")
+            
+            elif analysis_type == 'index_template':
+                template_info = self.infrastructure_data['index_templates'].get(item, {})
+                
+                pattern_count = len(template_info.get('index_patterns', []))
+                summary_lines.append(f"• Index Patterns: {pattern_count}")
+                
+                if template_info.get('index_patterns'):
+                    summary_lines.append(f"  - {', '.join(template_info['index_patterns'])}")
+                
+                summary_lines.append(f"• Priority: {template_info.get('priority', 0)}")
+                
+                component_count = len(template_info.get('composed_of', []))
+                summary_lines.append(f"• Component Templates: {component_count}")
+                
+                if template_info.get('composed_of'):
+                    summary_lines.append(f"  - {', '.join(template_info['composed_of'])}")
+                
+                # Check if template has pipeline settings
+                template_settings = template_info.get('template', {}).get('settings', {})
+                if template_settings.get('index.default_pipeline'):
+                    summary_lines.append(f"• Default Pipeline: {template_settings['index.default_pipeline']}")
+                if template_settings.get('index.final_pipeline'):
+                    summary_lines.append(f"• Final Pipeline: {template_settings['index.final_pipeline']}")
+            
+            elif analysis_type == 'component_template':
+                template_info = self.infrastructure_data['component_templates'].get(item, {})
+                
+                if template_info.get('version'):
+                    summary_lines.append(f"• Version: {template_info['version']}")
+                
+                used_by_count = len(template_info.get('used_by_index_templates', set()))
+                summary_lines.append(f"• Used by {used_by_count} index templates")
+                
+                if template_info.get('used_by_index_templates'):
+                    summary_lines.append(f"  - {', '.join(template_info['used_by_index_templates'])}")
+                
+                # Check if component template has pipeline settings
+                template_settings = template_info.get('template', {}).get('settings', {})
+                if template_settings.get('index.default_pipeline'):
+                    summary_lines.append(f"• Default Pipeline: {template_settings['index.default_pipeline']}")
+                if template_settings.get('index.final_pipeline'):
+                    summary_lines.append(f"• Final Pipeline: {template_settings['index.final_pipeline']}")
             
             summary_lines.append("")
         
@@ -1710,12 +1914,12 @@ class ElasticInfrastructureGUI:
                                 fit: true
                             }},
                             barnesHut: {{
-                                gravitationalConstant: -1000,
-                                centralGravity: 0.1,
-                                springLength: 120,
-                                springConstant: 0.08,
-                                damping: 0.3,
-                                avoidOverlap: 0.1
+                                gravitationalConstant: -2000,
+                                centralGravity: 0.05,
+                                springLength: 300,
+                                springConstant: 0.04,
+                                damping: 0.4,
+                                avoidOverlap: 0.3
                             }},
                             maxVelocity: 10,
                             minVelocity: 0.01,
@@ -1839,6 +2043,15 @@ class ElasticInfrastructureGUI:
                         content += `Source Indices: ${{metadata.source_count || 0}}<br/>`;
                         content += `Used by Pipelines: ${{metadata.used_by_count || 0}}<br/>`;
                         content += `Match Field: ${{metadata.match_field || 'unknown'}}<br/>`;
+                    }} else if (node.type === 'index_template') {{
+                        content += `Index Patterns: ${{metadata.pattern_count || 0}}<br/>`;
+                        content += `Component Templates: ${{metadata.component_count || 0}}<br/>`;
+                        content += `Priority: ${{metadata.priority || 0}}<br/>`;
+                    }} else if (node.type === 'component_template') {{
+                        content += `Used by Templates: ${{metadata.used_by_count || 0}}<br/>`;
+                        if (metadata.version) {{
+                            content += `Version: ${{metadata.version}}<br/>`;
+                        }}
                     }}
                     
                     content += `<br/><small>💡 Click to select, double-click for details</small>`;
@@ -2000,6 +2213,54 @@ class ElasticInfrastructureGUI:
                                 <div class="info-section">
                                     <h4>🔗 Used by Pipelines</h4>
                                     <ul>${{detailedInfo.used_by_pipelines.map(p => `<li>${{p}}</li>`).join('')}}</ul>
+                                </div>
+                            `;
+                        }}
+                    }} else if (node.type === 'index_template') {{
+                        content += `
+                            <div class="info-section">
+                                <h4>📊 Template Configuration</h4>
+                                <div class="stat-item">Index Patterns: <strong>${{metadata.pattern_count || 0}}</strong></div>
+                                <div class="stat-item">Component Templates: <strong>${{metadata.component_count || 0}}</strong></div>
+                                <div class="stat-item">Priority: <strong>${{metadata.priority || 0}}</strong></div>
+                            </div>
+                        `;
+                        
+                        if (detailedInfo.index_patterns && detailedInfo.index_patterns.length > 0) {{
+                            content += `
+                                <div class="info-section">
+                                    <h4>🎯 Index Patterns</h4>
+                                    <ul>${{detailedInfo.index_patterns.map(p => `<li>${{p}}</li>`).join('')}}</ul>
+                                </div>
+                            `;
+                        }}
+                        
+                        if (detailedInfo.composed_of && detailedInfo.composed_of.length > 0) {{
+                            content += `
+                                <div class="info-section">
+                                    <h4>🧩 Component Templates</h4>
+                                    <ul>${{detailedInfo.composed_of.map(c => `<li>${{c}}</li>`).join('')}}</ul>
+                                </div>
+                            `;
+                        }}
+                    }} else if (node.type === 'component_template') {{
+                        content += `
+                            <div class="info-section">
+                                <h4>📊 Template Information</h4>
+                                <div class="stat-item">Used by Templates: <strong>${{metadata.used_by_count || 0}}</strong></div>
+                        `;
+                        
+                        if (metadata.version) {{
+                            content += `<div class="stat-item">Version: <strong>${{metadata.version}}</strong></div>`;
+                        }}
+                        
+                        content += `</div>`;
+                        
+                        if (detailedInfo.used_by_index_templates && detailedInfo.used_by_index_templates.length > 0) {{
+                            content += `
+                                <div class="info-section">
+                                    <h4>📋 Used by Index Templates</h4>
+                                    <ul>${{detailedInfo.used_by_index_templates.map(t => `<li>${{t}}</li>`).join('')}}</ul>
                                 </div>
                             `;
                         }}
