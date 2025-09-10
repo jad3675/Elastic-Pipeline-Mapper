@@ -18,6 +18,24 @@ The Elasticsearch Pipeline Analyzer is a powerful desktop application that helps
 - **Infrastructure Overview**: Get a high-level view of your entire ingest infrastructure
 - **Documentation**: Generate visual documentation of your pipeline architecture
 
+## 🆕 What's New (Modular + 3D)
+
+- Modern modular design (no longer a single monolithic script). Clear separation of concerns across UI, data access, analysis, and visualization layers:
+  - Entry point: [main.py](main.py)
+  - App orchestration: [analyzer/app.py](analyzer/app.py)
+  - Elasticsearch access: [analyzer/elasticsearch/connection.py](analyzer/elasticsearch/connection.py), [analyzer/elasticsearch/data_fetcher.py](analyzer/elasticsearch/data_fetcher.py)
+  - Analysis: [analyzer/analysis/processor_analyzer.py](analyzer/analysis/processor_analyzer.py), [analyzer/analysis/relationship_builder.py](analyzer/analysis/relationship_builder.py)
+  - Visualization (2D + 3D): [analyzer/visualization/html_generator.py](analyzer/visualization/html_generator.py)
+  - UI: [analyzer/ui/*](analyzer/ui)
+- New 3D force-directed visualization:
+  - Distinct 3D shapes per node type (box, cylinder, cone, dodecahedron, torus, etc.)
+  - Crisp labels, white background, improved lighting/shadows, and edge outlines for depth
+  - 3D Mode toggle integrated into the Export panel
+- Quality-of-life improvements:
+  - HiDPI-friendly label rendering
+  - PNG/SVG export with correct white background
+  - Stable library versions for rendering to avoid API mismatches
+
 ## ✨ Features
 
 ### 🔍 Multi-Level Visualization
@@ -32,6 +50,14 @@ The Elasticsearch Pipeline Analyzer is a powerful desktop application that helps
 - **Drag & Drop**: Reposition nodes for better visualization
 - **Zoom Controls**: Zoom in/out and reset view
 - **Data Flow Animation**: Animated particles showing data flow direction
+
+### 🧭 3D Force-Directed Visualization (New)
+- Distinct 3D geometries by type for faster cognition (pipeline, index, phase, enrich, transform, templates, groups)
+- Specular lighting + outlines for real depth perception
+- Readable labels with pill backgrounds and HiDPI scaling
+- White background (renderer + scene + CSS) for clean documentation screenshots
+- 3D Mode toggle in the Export panel
+- Rotate, pan, zoom interactions consistent with typical 3D scenes
 
 ### 📊 Comprehensive Analysis
 - **Pipeline Chains**: Trace complete processing chains from indices
@@ -83,9 +109,15 @@ pip install tkinter elasticsearch vis-network
    ```
 
 3. **Run the Application**
-   ```bash
-   python elastic_pipeline_analyzer.py
-   ```
+- Current modular application (recommended)
+```bash
+python main.py
+```
+
+- Legacy single-file entry point (monolithic)
+```bash
+python elastic_pipeline_analyzer.py
+```
 
 ## 📖 Usage Guide
 
@@ -131,6 +163,12 @@ Choose what to analyze:
 - **Click & Drag**: Pan around the diagram
 - **Node Drag**: Reposition individual nodes
 
+#### 3D Navigation
+- Left-drag: rotate the scene
+- Right-drag (or Ctrl/Cmd + drag): pan
+- Mouse wheel / pinch: zoom
+- Double-click a node: focus the camera
+
 #### Information Access
 - **Hover**: Quick tooltip with basic information
 - **Single Click**: Select node and show details in sidebar
@@ -146,6 +184,7 @@ Choose what to analyze:
   - 📷 Export PNG
   - 📄 Export SVG
   - ▶️ Show Data Flow Animation
+  - 🧭 3D Mode: On/Off toggle
 
 ### 4. Understanding the Visualizations
 
@@ -237,6 +276,32 @@ logging.basicConfig(level=logging.DEBUG)
 
 ## 🏗️ Architecture
 
+### Modern Modular Architecture (Current)
+```
+main.py
+analyzer/
+├── app.py                         # Application bootstrap and orchestration
+├── ui/
+│   ├── main_frame.py
+│   ├── credentials_frame.py
+│   ├── analysis_frame.py
+│   └── results_frame.py
+├── elasticsearch/
+│   ├── connection.py              # Connection/session handling
+│   └── data_fetcher.py            # Cluster data retrieval
+├── analysis/
+│   ├── processor_analyzer.py      # Phase stats, processor grouping
+│   └── relationship_builder.py    # Graph/relationship construction
+├── visualization/
+│   └── html_generator.py          # 2D (vis-network) + 3D (three.js/3d-force-graph) rendering
+└── config/
+    └── settings.py                # Tuning constants and defaults
+```
+
+- Design principles: YAGNI, SOLID, KISS, DRY
+- Clear separation of concerns for maintainability and testing
+- 2D and 3D visualizations share the same analyzed graph model
+
 ### Application Structure
 ```
 elastic_pipeline_analyzer.py
@@ -269,10 +334,15 @@ elastic_pipeline_analyzer.py
 ### Dependencies
 - **tkinter**: GUI framework (built into Python)
 - **elasticsearch**: Official Elasticsearch Python client
-- **vis-network**: JavaScript network visualization library
+- **vis-network**: JavaScript network visualization library (2D)
 - **json**: Data serialization (built into Python)
 - **tempfile**: Temporary file handling (built into Python)
 - **webbrowser**: Browser integration (built into Python)
+
+Frontend (loaded via CDN in the generated HTML)
+- **three.js**: 3D rendering engine
+- **3d-force-graph**: Force-directed 3D graph layout
+- Note: No additional Python packages are required for 3D; assets are fetched from CDNs by [analyzer/visualization/html_generator.py](analyzer/visualization/html_generator.py)
 
 ## 🤝 Contributing
 
@@ -332,4 +402,3 @@ When reporting bugs, please include:
 - **Export Formats**: Additional export formats (PDF, Visio, etc.)
 
 ---
-
